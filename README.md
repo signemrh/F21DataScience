@@ -1,7 +1,7 @@
 # F21DataScience
 This repository contains the material used to complete the exam in Data Science (Aarhus University). 
 
-The files in this repository is to be related to the paper - <i>"Forecasting the relationship between traffic fatalities and GDP in the United States"</i>.
+The files in this repository can be used to reproduce the findings in the paper - <i>"Forecasting the relationship between traffic fatalities and GDP in the United States"</i>.
 
 # Description of content
 ### <b>Data</b>
