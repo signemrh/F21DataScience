@@ -1,0 +1,636 @@
+---
+title: "Data Science - Exam"
+output: pdf_document
+---
+
+## Script for Data Science exam
+
+# Libraries
+
+```{r}
+library(tidyverse)
+library(data.table)
+library(tsibble)
+library(fabletools)
+library(stringr)
+library(feasts)
+library(fable)
+library(usmap)
+library(zoo)
+library(GGally)
+library(ggrepel)
+```
+
+
+# Introduction to project
+
+This project seeks to investigate the relationship between fatalities in car crashes and GDP in each state in USA.  
+
+# Data 
+
+This chunk loads all the data for GDP
+- GDP is in Millions of Dollars
+
+```{r}
+# set the working directory
+setwd("/Users/signeholdgaard/OneDrive - Aarhus universitet/Master/8 semester/Data Science/Exam/Coding/Data/GDP data/")
+
+# a list of the files in the directory
+files <- list.files()
+
+# create an empty list to store the data from the files
+data_list <- list()
+
+# loop over all the files in the folder
+for(i in 1:length(files)){
+  file_name <- files[i]
+  d = fread(file_name, sep=",") # read the csv files
+
+  #Change columns names
+  colnames(d) <- c("Date","GDP")
+
+  # Split the string by "_"
+  filenames_vec <- strsplit(file_name, split = "_")[[1]]
+
+  # Create new column for state
+  d$State <- filenames_vec[2] # extract state name from filename
+  d$State <- sub("*\\.csv", "", d$State) # remove the .csv from the column
+  data_list[[i]] <- d # add the data to the list
+}
+
+# rbind all the data from the lists
+gdp_data <- rbindlist(data_list) 
+
+
+```
+
+
+This chunk loads all the accident data
+
+```{r}
+# set working directory
+setwd("/Users/signeholdgaard/OneDrive - Aarhus universitet/Master/8 semester/Data Science/Exam/Coding/Data/Fatality data/Accident_data")
+
+# create list of files in directory
+files <- list.files()
+
+# create an empty list to store the data from the files
+data_list <- list()
+
+# loop over all the files in the folder
+for(i in 1:length(files)){
+  file_name <- files[i]
+  d = fread(file_name, sep=",")
+  
+  # select columns
+  d = subset(d, select=c("STATE", "MONTH", "DAY", "YEAR", "HOUR", "MINUTE", "VE_FORMS", "DAY_WEEK", "FATALS", "ST_CASE"))
+
+  # Split the string by "_"
+  filenames_vec <- strsplit(file_name, split = "_")[[1]]
+
+  # Create new column for state
+  d$FYear <- filenames_vec[2] # extract state name from filename
+  d$FYear <- sub("*\\.csv", "", d$FYear) # remove the .csv from the column
+  d$FYear <- sub("*\\.CSV", "", d$FYear) # remove the .csv from the column
+  data_list[[i]] <- d # add the data to the list
+}
+
+# rbind all the data from the lists
+acc_data <- rbindlist(data_list) 
+
+# add leading 0 if less than 2 digits
+acc_data$DAY <- str_pad(acc_data$DAY, 2, pad = "0") 
+acc_data$MONTH <- str_pad(acc_data$MONTH, 2, pad = "0")
+
+# make a full date column 
+acc_data$Date <- paste(acc_data$DAY, acc_data$MONTH, acc_data$FYear,sep="-")
+
+acc_data <- mutate(acc_data, Date = as.Date(Date, format = "%d-%m-%Y"))
+
+# investigate NA's 
+na_data <- filter(acc_data, is.na(Date))
+
+# group by year to remove duplicates and create one point pr year pr state
+group_acc_data <- acc_data %>%
+  group_by(STATE, FYear) %>%
+  summarise(fatality = sum(FATALS)) 
+
+# make a copy of dataframe 
+t_acc_data <- group_acc_data
+
+```
+
+
+```{r}
+# Make states into names instead of numbers 
+t_acc_data$STATE[t_acc_data$STATE == 1] <- "Alabama"   
+t_acc_data$STATE[t_acc_data$STATE == 2] <- "Alaska"
+t_acc_data$STATE[t_acc_data$STATE == 4] <- "Arizona"   
+t_acc_data$STATE[t_acc_data$STATE == 5] <- "Arkansas"   
+t_acc_data$STATE[t_acc_data$STATE == 6] <- "California"   
+t_acc_data$STATE[t_acc_data$STATE == 8] <- "Colorado"   
+t_acc_data$STATE[t_acc_data$STATE == 9] <- "Connecticut"   
+t_acc_data$STATE[t_acc_data$STATE == 10] <- "Delaware"   
+t_acc_data$STATE[t_acc_data$STATE == 11] <- "District of Columbia"   
+t_acc_data$STATE[t_acc_data$STATE == 12] <- "Florida"   
+t_acc_data$STATE[t_acc_data$STATE == 13] <- "Georgia"   
+t_acc_data$STATE[t_acc_data$STATE == 15] <- "Hawaii"   
+t_acc_data$STATE[t_acc_data$STATE == 16] <- "Idaho"   
+t_acc_data$STATE[t_acc_data$STATE == 17] <- "Illinois"   
+t_acc_data$STATE[t_acc_data$STATE == 18] <- "Indiana"   
+t_acc_data$STATE[t_acc_data$STATE == 19] <- "Iowa"   
+t_acc_data$STATE[t_acc_data$STATE == 20] <- "Kansas"   
+t_acc_data$STATE[t_acc_data$STATE == 21] <- "Kentucky"   
+t_acc_data$STATE[t_acc_data$STATE == 22] <- "Louisiana"   
+t_acc_data$STATE[t_acc_data$STATE == 23] <- "Maine"   
+t_acc_data$STATE[t_acc_data$STATE == 24] <- "Maryland"   
+t_acc_data$STATE[t_acc_data$STATE == 25] <- "Massachusetts"   
+t_acc_data$STATE[t_acc_data$STATE == 26] <- "Michigan"   
+t_acc_data$STATE[t_acc_data$STATE == 27] <- "Minnesota"   
+t_acc_data$STATE[t_acc_data$STATE == 28] <- "Mississippi"   
+t_acc_data$STATE[t_acc_data$STATE == 29] <- "Missouri"   
+t_acc_data$STATE[t_acc_data$STATE == 30] <- "Montana"   
+t_acc_data$STATE[t_acc_data$STATE == 31] <- "Nebraska"   
+t_acc_data$STATE[t_acc_data$STATE == 32] <- "Nevada"   
+t_acc_data$STATE[t_acc_data$STATE == 33] <- "New Hampshire"   
+t_acc_data$STATE[t_acc_data$STATE == 34] <- "New Jersey"   
+t_acc_data$STATE[t_acc_data$STATE == 35] <- "New Mexico"   
+t_acc_data$STATE[t_acc_data$STATE == 36] <- "New York"
+t_acc_data$STATE[t_acc_data$STATE == 37] <- "North Carolina"   
+t_acc_data$STATE[t_acc_data$STATE == 38] <- "North Dakota"   
+t_acc_data$STATE[t_acc_data$STATE == 39] <- "Ohio"   
+t_acc_data$STATE[t_acc_data$STATE == 40] <- "Oklahoma"   
+t_acc_data$STATE[t_acc_data$STATE == 41] <- "Oregon"   
+t_acc_data$STATE[t_acc_data$STATE == 42] <- "Pennsylvania"   
+t_acc_data$STATE[t_acc_data$STATE == 43] <- "Puerto Rico"   
+t_acc_data$STATE[t_acc_data$STATE == 44] <- "Rhode Island"   
+t_acc_data$STATE[t_acc_data$STATE == 45] <- "South Carolina"   
+t_acc_data$STATE[t_acc_data$STATE == 46] <- "South Dakota"   
+t_acc_data$STATE[t_acc_data$STATE == 47] <- "Tennessee"   
+t_acc_data$STATE[t_acc_data$STATE == 48] <- "Texas"   
+t_acc_data$STATE[t_acc_data$STATE == 49] <- "Utah"   
+t_acc_data$STATE[t_acc_data$STATE == 50] <- "Vermont"   
+t_acc_data$STATE[t_acc_data$STATE == 52] <- "Virgin Islands"   
+t_acc_data$STATE[t_acc_data$STATE == 51] <- "Virginia"   
+t_acc_data$STATE[t_acc_data$STATE == 53] <- "Washington"  
+t_acc_data$STATE[t_acc_data$STATE == 54] <- "West Virginia"  
+t_acc_data$STATE[t_acc_data$STATE == 55] <- "Wisconsin"  
+t_acc_data$STATE[t_acc_data$STATE == 56] <- "Wyoming"  
+
+# make it uppercase to fit the GDP dataframe
+t_acc_data$STATE <- toupper(t_acc_data$STATE)
+
+```
+
+# Merge of data frames
+
+```{r}
+# make columns in each dataframe to match by 
+t_acc_data$Year <- t_acc_data$FYear
+gdp_data$Year <- substr(gdp_data$Date, start = 1, stop = 4)
+
+# remove 2020 from GDP data
+gdp_data <- filter(gdp_data, Year != "2020")
+
+# rename column
+t_acc_data <- t_acc_data %>% 
+  rename(
+    State = STATE)
+
+# GDP rename some of the states
+gdp_data$State[gdp_data$State == "NORTHDAKOTA"] <- "NORTH DAKOTA"   
+gdp_data$State[gdp_data$State == "SOUTHDAKOTA"] <- "SOUTH DAKOTA"   
+gdp_data$State[gdp_data$State == "NEWMEXICO"] <- "NEW MEXICO"   
+gdp_data$State[gdp_data$State == "WESTVIRGINA"] <- "WEST VIRGINIA"  
+gdp_data$State[gdp_data$State == "NEWYORK"] <- "NEW YORK"  
+gdp_data$State[gdp_data$State == "NORTHCAROLINA"] <- "NORTH CAROLINA"  
+gdp_data$State[gdp_data$State == "NEWJERSEY"] <- "NEW JERSEY"  
+gdp_data$State[gdp_data$State == "SOUTHCAROLINA"] <- "SOUTH CAROLINA"  
+gdp_data$State[gdp_data$State == "NEWHAMPSHIRE"] <- "NEW HAMPSHIRE"  
+gdp_data$State[gdp_data$State == "DISTRICTOFCOLUMBIA"] <- "DISTRICT OF COLUMBIA"  
+gdp_data$State[gdp_data$State == "RHODEISLAND"] <- "RHODE ISLAND" 
+gdp_data$State[gdp_data$State == "ILLIONOIS"] <- "ILLINOIS" 
+
+
+# merge dataframes
+full_data <- t_acc_data %>% 
+  right_join(gdp_data, by=c("State","Year"))
+
+```
+
+
+# Population data
+
+The following chunk will prepare the data needed to make population adjustments to the main variables. 
+
+```{r}
+
+# load data with populations
+pop_data2020 = read.csv("/Users/signeholdgaard/OneDrive - Aarhus universitet/Master/8 semester/Data Science/Exam/Coding/Data/Population_data/Census_2010-2020.csv", sep=",")
+
+# select relevant columns
+pop_data2020 <- pop_data2020 %>%
+  select(NAME, CENSUS2010POP, POPESTIMATE2011, POPESTIMATE2011, POPESTIMATE2012, POPESTIMATE2013, POPESTIMATE2014,
+         POPESTIMATE2015, POPESTIMATE2016, POPESTIMATE2017, POPESTIMATE2018, POPESTIMATE2019)
+
+# remove unused regions/states
+pop_data2020 <-  filter(pop_data2020, NAME != "United States" & NAME != "Northeast Region" & NAME != "Midwest Region" & NAME != "South Region" & NAME != "West Region" & NAME != "Puerto Rico")
+
+# prepare years that needs to be interpolated 
+pop_data2020$Y1991 <- NA
+pop_data2020$Y1992 <- NA
+pop_data2020$Y1993 <- NA
+pop_data2020$Y1994 <- NA
+pop_data2020$Y1995 <- NA
+pop_data2020$Y1996 <- NA
+pop_data2020$Y1997 <- NA
+pop_data2020$Y1998 <- NA
+pop_data2020$Y1999 <- NA
+pop_data2020$Y2001 <- NA
+pop_data2020$Y2002 <- NA
+pop_data2020$Y2003 <- NA
+pop_data2020$Y2004 <- NA
+pop_data2020$Y2005 <- NA
+pop_data2020$Y2006 <- NA
+pop_data2020$Y2007 <- NA
+pop_data2020$Y2008 <- NA
+pop_data2020$Y2009 <- NA
+
+# change from wide to long format
+pop_long <- gather(pop_data2020, Column, pop, CENSUS2010POP:Y2009, factor_key=TRUE)
+
+# extract numbers from column
+pop_long$Year <- as.numeric(gsub("\\D", "", pop_long$Column))
+
+# select relevant columns
+pop_long <- select(pop_long, NAME, Year, pop)
+
+# Second data frame
+pop_datahis = read.csv("/Users/signeholdgaard/OneDrive - Aarhus universitet/Master/8 semester/Data Science/Exam/Coding/Data/Population_data/censushis.csv", sep = ",", encoding = "UTF-8", header = TRUE, stringsAsFactors = FALSE)
+
+# select relevant columns
+pop_datahis <- select(pop_datahis, Name, Year, Resident.Population)
+
+# remove unused state/regions and years
+pop_datahis <-  filter(pop_datahis, Name != "United States" & Name != "Northeast Region" & Name != "Midwest Region" & Name != "South Region" & Name != "West Region" & Name != "Puerto Rico" & Year >= 1990 & Year < 2010 )
+
+# remove the , delimiters in the population column
+pop_datahis$Resident.Population <- as.numeric(gsub(",","",pop_datahis$Resident.Population))
+
+# rename columns
+pop_datahis <- pop_datahis %>% 
+  rename(
+    pop = Resident.Population, 
+    NAME = Name)
+
+# bind dataframes
+full_pop <- rbind(pop_datahis, pop_long)
+
+# rename columns
+full_pop <- full_pop %>% 
+  rename(
+    State = NAME)
+
+# order by state and date
+full_pop <- full_pop[order( full_pop[,1], full_pop[,2] ),]
+
+# interpolate missing values in the population columns
+full_pop <- full_pop %>%
+  group_by(State) %>%
+  mutate(PopInterp = na.approx(pop, na.rm=FALSE))
+
+# make it uppercase to fit the full data
+full_pop$State <- toupper(full_pop$State)
+full_pop$Year <- as.character(full_pop$Year)
+
+# select the years needed 
+full_pop <- subset(full_pop, Year>"1996" & Year<"2020")
+
+# merge onto the old data
+n_full_data <- full_data %>% 
+ right_join(full_pop, by=c("State","Year"))
+
+```
+
+
+# Preprocessing
+
+- Adjusting for population
+
+```{r}
+
+# make population into millions
+n_full_data <- mutate(n_full_data, Pop_mil = PopInterp/1000000)
+
+# take GDP per million
+n_full_data <- mutate(n_full_data, GDP_capita = GDP/Pop_mil)
+
+# take fatalities per million
+n_full_data <- mutate(n_full_data, FAT_capita = fatality/Pop_mil)
+
+
+```
+
+- Abbreviate states
+
+```{r}
+# Change the states to abbreviations
+ab_list <- c("alabama"= "AL", "alaska" = "AK", "arizona" = "AZ", "arkansas" = "AR", "california" = "CA","colorado" = "CO","connecticut" = "CT","delaware" = "DE", "district of columbia" = "DC","florida" = "FL","georgia" = "GA","hawaii" = "HI","idaho" = "ID","illinois" = "IL","indiana" = "IN","iowa" = "IA","kansas" = "KS","kentucky" = "KY","louisiana" = "LA","maine" = "ME","maryland" = "MD","massachusetts" = "MA","michigan" = "MI","minnesota" = "MN","mississippi" = "MS","missouri" = "MO","montana" = "MT","nebraska" = "NE","nevada" = "NV","new hampshire" = "NH","new jersey" = "NJ","new mexico" = "NM","new york" = "NY","north carolina" = "NC","north dakota" = "ND","ohio" = "OH","oklahoma" = "OK","oregon" = "OR","pennsylvania" = "PA","rhode island" = "RI","south carolina" = "SC","south dakota" = "SD","tennessee" = "TN","texas" = "TX","utah" = "UT","vermont" = "VT","virginia" = "VA","washington" = "WA","west virginia" = "WV","wisconsin" = "WI","wyoming" = "WY")
+
+# lowercase everything
+n_full_data$State_ab <- tolower(n_full_data$State)
+
+# put the lowercased statenames into a list
+ab_var <- n_full_data$State_ab
+
+# loop over all the state names in the list and replace with abbreviations
+for (i in 1:length(ab_list)) {
+  ab_var <- ab_var %>% str_replace(names(ab_list)[i], ab_list[i])
+}
+
+# append the new abbreviations to the dataframe
+n_full_data$State_ab <- ab_var
+
+# correct naming error
+n_full_data$State_ab <- gsub("west VA", "WV", n_full_data$State_ab)
+```
+
+
+
+# Time series 
+
+The dataframe has to be converted into a tsibble object to enable the full time series analysis. 
+
+```{r}
+# make the full data into a tsibble 
+t_full_data <- n_full_data %>%
+  mutate(Year = year(as.character(Date))) %>%
+  as_tsibble(key = State_ab, index = Year)
+
+
+```
+
+
+# Investigate the data
+
+Plot the raw data - both the fatalities and GDP
+
+```{r}
+# plot 
+# fatality
+autoplot(t_full_data, FAT_capita)+
+  labs(y = "Fatalities pr. million", x = "Year", title = "Fatalities pr. million pr. state")
+
+# GDP
+autoplot(t_full_data, GDP_capita)+
+  labs(y = "$US", x = "Year", title = "GDP pr. million pr. state")
+
+
+```
+
+# Relationship
+
+```{r}
+
+# scatterplot matrix with correlations
+t_full_data %>%
+  GGally::ggpairs(columns = 10:11, columnLabels = c("GDP", "Fatality"))
+
+# plot of the relationship between the two variables of interest
+t_full_data %>%
+  ggplot(aes(x = GDP_capita, y = FAT_capita, label = State_ab)) +
+  labs(y = "Fatality", x = "GDP in million $", title = "GDP and traffic fatalities") +
+  geom_point(aes(color = State_ab)) +
+  geom_smooth(method="glm", method.args=list(family=gaussian(link="log")))
+
+```
+
+
+# Model
+
+## Elaborate model
+
+Unit root tests to check for stationarity
+```{r}
+# Unit root test of the fatalities
+t_full_data %>%
+  features(FAT_capita, unitroot_kpss)
+
+# Unit root test of gdp
+t_full_data %>%
+  features(GDP_capita, unitroot_kpss)
+
+```
+
+The data appears to not fit the non-stationary assumption of ARIMA models, but the automated ARIMA specification can be used to search for the optimal p, q and d parameters. 
+
+```{r}
+
+# model with fatalities predicted by GDP - use stepwise false to search more area for a better model and avoid approximations to search for best model
+model_results <- t_full_data %>%
+  model(exp = ARIMA(FAT_capita ~ GDP_capita, stepwise=FALSE, approximation=FALSE))%>%
+  report()
+
+```
+
+Look at the performance of model on each state
+
+```{r}
+# prepare dataframe for plot
+us_plot_prep <- model_results %>%
+  rename(state = State_ab)
+
+# create us map with number of fatalities
+usa_plot <- plot_usmap(data = us_plot_prep, values = "AICc", color = "grey", labels = TRUE, label_color = "black") + 
+  scale_fill_gradient(low = "cadetblue1", high = "cadetblue4", na.value = "grey50", # the colors for the states
+                      guide = "colourbar", # for continuous color bar
+                      name = "AICc") + # title on legend
+                      theme(legend.position = "right") # put legend on the right
+
+usa_plot$layers[[2]]$aes_params$size <- 2.7 # change the size of the abbreviations
+
+
+# view plot
+print(usa_plot)
+```
+
+
+Investigate two states - best and worst fitted
+
+```{r}
+
+# find the state with the highest AICc and the state with the lowest value
+model_results$State_ab[model_results$AICc==max(model_results$AICc)]
+model_results$State_ab[model_results$AICc==min(model_results$AICc)]
+
+# look at the mean score of AICc
+mean(model_results$AICc)
+
+```
+
+## Simpel models
+
+Serve as a sanity check for the full model. Should show something similar to the full model. 
+
+```{r}
+# simple arima model with GDP
+gdp_model_results <- t_full_data %>%
+  model(ARIMA(GDP_capita, stepwise = FALSE, approximation=FALSE)) %>%
+  report()
+
+# find the state with the highest AICc and the state with the lowest value
+gdp_model_results$State_ab[gdp_model_results$AICc==max(gdp_model_results$AICc)]
+gdp_model_results$State_ab[gdp_model_results$AICc==min(gdp_model_results$AICc)]
+
+# simple arima model with fatalities
+fat_model_results <- t_full_data %>%
+  model(ARIMA(FAT_capita, stepwise = FALSE, approximation=FALSE)) %>%
+  report()
+
+# find the state with the highest AICc and the state with the lowest value
+fat_model_results$State_ab[fat_model_results$AICc==max(fat_model_results$AICc)]
+fat_model_results$State_ab[fat_model_results$AICc==min(fat_model_results$AICc)]
+
+```
+
+In both the simple models Wyoming has the worst scores. In the GDP model the best scoring state is Maine, whereas in the fatality model the best scoring state is New York.
+
+
+Due to page limits all states will not be forecasted. To narrow down the analysis NY and WY will be the two states that will be forecasted since these two are the best and worst model fitted states. 
+
+### State with the lowest AICc score - NY
+
+- Check non-stationarity
+```{r}
+# Unit root test of the data
+t_full_data %>%
+  filter(State_ab == "NY") %>%
+  features(FAT_capita, unitroot_kpss)
+
+# Unit root test of the data
+t_full_data %>%
+  filter(State_ab == "NY") %>%
+  features(GDP_capita, unitroot_kpss)
+
+
+```
+
+The data appears to not fit the non-stationary assumption of ARIMA models, but the automated ARIMA specification can be used to search for the optimal p, q and d parameters. 
+
+- Check residuals
+```{r}
+# create a model with only New York
+ny_fit <- t_full_data %>%
+  filter(State_ab == "NY") %>%
+  model(ar_ny_model =  ARIMA(FAT_capita ~ GDP_capita, stepwise=FALSE, approximation = FALSE))
+
+# look at values for the model
+glance(ny_fit) %>% arrange(AICc) %>% select(.model:BIC)
+
+# look at the residuals for the model - should behave like white noise
+ny_fit %>%
+  select(ar_ny_model) %>%
+  gg_tsresiduals()
+
+# look at portmanteau test - if a large p-value then the residuals are white noise.
+augment(ny_fit) %>%
+  filter(.model=='ar_ny_model') %>%
+  features(.innov, ljung_box, lag = 10, dof = 3)
+```
+
+The residuals seems like white noise and the portmanteau gives a large p-value therefore it seems legitimate to use this model to forecast from. 
+
+- Forecast
+
+```{r}
+# create dataframe to be used in the forecasting
+ny_temp_data <- t_full_data %>%
+  filter(State_ab == "NY")
+
+# create model with only gdp to be used in the forecast
+ny_gdp_fit <- ny_temp_data %>%
+ model(ARIMA(GDP_capita, stepwise = FALSE, approximation = FALSE))
+
+# create forecasts to be used as new data for the predictor
+ny_gdp_forecast <- forecast(ny_gdp_fit, h = 8)
+  
+# append the forecasted GDP values to a dataframe for future values of GDP
+ny_gdp_future <- new_data(ny_temp_data, 8) %>%
+  mutate(GDP_capita = ny_gdp_forecast$.mean)
+
+# forecast traffic fatalities using the model and the forecasted GDP values
+forecast(ny_fit, new_data = ny_gdp_future, h = 8) %>%
+  autoplot(ny_temp_data) +
+  labs(y = "Fatalities", title = "New York - forecast", x = "Year")
+
+
+```
+
+### State with the highest AICc score - WY
+
+- Check non-stationarity
+```{r}
+# Unit root test of the data
+t_full_data %>%
+  filter(State_ab == "WY") %>%
+  features(FAT_capita, unitroot_kpss)
+
+# Unit root test of the data
+t_full_data %>%
+  filter(State_ab == "WY") %>%
+  features(GDP_capita, unitroot_kpss)
+
+```
+
+- Check residuals
+```{r}
+# create a model with only Wyoming
+wy_fit <- t_full_data %>%
+  filter(State_ab == "WY") %>%
+  model(ar_wy_model = ARIMA(FAT_capita ~ GDP_capita, stepwise=FALSE, approximation = FALSE))
+
+# look at values for the model
+glance(wy_fit) %>% arrange(AICc) %>% select(.model:BIC)
+
+# look at the residuals for the model - should behave like whitenoise
+wy_fit %>%
+  select(ar_wy_model) %>%
+  gg_tsresiduals()
+
+# look at portmanteau test - if a large p-value then the residuals are white noise.
+augment(wy_fit) %>%
+  filter(.model=='ar_wy_model') %>%
+  features(.innov, ljung_box, lag = 10, dof = 3)
+```
+
+The residuals seems a bit like less white noise compared to the New York model and the portmanteau gives a smaller p-value therefore it could be questionable to forecast from this model. 
+
+- Forecast
+
+```{r}
+# create dataframe with only data from Wyoming
+wy_temp_data <- t_full_data %>%
+  filter(State_ab == "WY")
+
+# create model with only gdp to be used in the forecast
+wy_gdp_fit <- wy_temp_data %>%
+ model(ARIMA(GDP_capita, stepwise = FALSE))
+
+# create forecasts of GDP to be used as new data for the predictor
+wy_gdp_forecast <- forecast(wy_gdp_fit, h = 8)
+  
+# append the forecasted GDP values to a dataframe for future values of GDP
+wy_gdp_future <- new_data(wy_temp_data, 8) %>%
+  mutate(GDP_capita = wy_gdp_forecast$.mean)
+
+# forecast traffic fatalities using the model and the forecasted GDP values
+forecast(wy_fit, new_data = wy_gdp_future, h = 8) %>%
+  autoplot(wy_temp_data) +
+  labs(y = "Fatalities", title = "Wyoming - forecast", x = "Year")
+
+
+```
+
+
+
+
